@@ -54,6 +54,11 @@ jobs:
           terraform -chdir=f5/nic/gcp init -backend=false
           terraform -chdir=f5/nic/gcp validate -no-color
 
+      - name: Validate app
+        run: |
+          terraform -chdir=app/gcp init -backend=false
+          terraform -chdir=app/gcp validate -no-color
+
       - name: Validate xc
         run: |
           terraform -chdir=f5/xc init -backend=false

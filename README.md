@@ -7,7 +7,7 @@ CI/CD-driven deployment of F5 Application Delivery and Security Platform (ADSP) 
 | ID | Description | Cloud | Guide |
 |----|-------------|-------|-------|
 | UC1 | BIG-IP with AWAF fronting vulnerable applications, F5 Distributed Cloud HTTP LB with WAF on top | GCP | [Deploy UC1 in Google Cloud](docs/ADSP-UC1-GCP.md) |
-| UC2 | NGINX Ingress Controller with NGINX App Protect on GKE, NGINX One for fleet management, F5 Distributed Cloud with API security on top | GCP | _in progress_ |
+| UC2 | NGINX Ingress Controller with NGINX App Protect on GKE, NGINX One for fleet management, F5 Distributed Cloud with API security on top | GCP | [Deploy UC2 in Google Cloud](docs/ADSP-UC2-GCP.md) |
 
 Pick a use case and follow its deployment guide.
 

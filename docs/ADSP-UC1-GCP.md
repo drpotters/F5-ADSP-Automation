@@ -59,7 +59,7 @@ The GitHub Actions workflow deploys modules sequentially with dependencies:
    ↓
 4. Terraform: BIG-IP Config (Uploads AS3 declaration to GCS)
    ↓
-5. Terraform: BIG-IP Base (F5 BIG-IP instance — pulls AS3 from GCS on boot)
+5. Terraform: BIG-IP Base (F5 BIG-IP instance that pulls AS3 from GCS on boot)
    ↓
 6. Terraform: F5 XC (Distributed Cloud config)
 ```
@@ -625,7 +625,7 @@ State files should not be edited by hand. Back up state before major changes:
 gsutil -m cp -r gs://${STATE_BUCKET}/state gs://backup-bucket/state-$(date +%Y%m%d)
 ```
 
-Destroy environments when idle. BIG-IP PAYG dominates the hourly cost — see [Cost Estimates](#cost-estimates).
+Destroy environments when idle. BIG-IP PAYG dominates the hourly cost. See [Cost Estimates](#cost-estimates).
 
 ---
 
