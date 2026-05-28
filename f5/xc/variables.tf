@@ -96,6 +96,18 @@ variable "xc_api_disc" {
   default     = false
 }
 
+variable "xc_api_crawler" {
+  type        = bool
+  description = "Enable the active API crawler against app_domain (requires xc_api_disc)."
+  default     = false
+}
+
+variable "xc_api_auth_discovery" {
+  type        = bool
+  description = "Enable default API authentication discovery (requires xc_api_disc)."
+  default     = false
+}
+
 variable "xc_api_pro" {
   type        = bool
   description = "Enable API Protection (Definition and Rules)"
@@ -216,11 +228,112 @@ variable "xc_bot_def" {
   default     = false
 }
 
+variable "xc_bot_def_advanced" {
+  type        = bool
+  description = "Enable the modern bot_defense_advanced block. Mutually exclusive with xc_bot_def."
+  default     = false
+}
+
+variable "xc_bot_def_advanced_web_policy_name" {
+  type        = string
+  description = "Name of a pre-existing bot defense (web) policy in XC. Required when xc_bot_def_advanced is true."
+  default     = ""
+}
+
+variable "xc_bot_def_advanced_web_policy_namespace" {
+  type        = string
+  description = "Namespace of the referenced bot defense (web) policy."
+  default     = "shared"
+}
+
 # XC DDoS Protection
 variable "xc_ddos_pro" {
   type        = bool
   description = "Enable XC DDoS Protection"
   default     = false
+}
+
+variable "xc_l7_ddos_rps_threshold" {
+  type        = number
+  description = "Per-source RPS threshold above which the L7 DDoS mitigation engages."
+  default     = 100
+}
+
+variable "xc_slow_ddos" {
+  type        = bool
+  description = "Enable slow-DDoS mitigation (request header / full request timeouts)."
+  default     = false
+}
+
+variable "xc_slow_ddos_request_headers_timeout" {
+  type        = number
+  description = "Maximum seconds allowed to receive complete request headers."
+  default     = 10
+}
+
+variable "xc_slow_ddos_request_timeout" {
+  type        = number
+  description = "Maximum seconds allowed for the full request to complete."
+  default     = 60
+}
+
+# XC IP Reputation
+variable "xc_ip_reputation" {
+  type        = bool
+  description = "Enable IP reputation filtering against the listed threat categories."
+  default     = false
+}
+
+variable "xc_ip_threat_categories" {
+  type        = list(string)
+  description = "Threat categories to match (e.g., SPAM_SOURCES, WINDOWS_EXPLOITS, TOR_PROXY)."
+  default = [
+    "SPAM_SOURCES",
+    "WINDOWS_EXPLOITS",
+    "WEB_ATTACKS",
+    "BOTNETS",
+    "SCANNERS",
+    "DOS_ATTACKS",
+    "PHISHING",
+    "PROXY",
+    "TOR_PROXY"
+  ]
+}
+
+# XC Threat Mesh
+variable "xc_threat_mesh" {
+  type        = bool
+  description = "Opt the LB into the cross-tenant XC threat mesh signal."
+  default     = false
+}
+
+# XC API Rate Limit (modern api_rate_limit block, replaces api_rate_limit_legacy)
+variable "xc_api_rate_limit" {
+  type        = bool
+  description = "Enable the modern API rate limit with a baseline global rule."
+  default     = false
+}
+
+variable "xc_api_rate_limit_threshold" {
+  type        = number
+  description = "Request count threshold for the baseline rate limit rule."
+  default     = 100
+}
+
+variable "xc_api_rate_limit_unit" {
+  type        = string
+  description = "Rate limit window unit (SECOND, MINUTE, HOUR)."
+  default     = "MINUTE"
+  validation {
+    condition     = contains(["SECOND", "MINUTE", "HOUR"], var.xc_api_rate_limit_unit)
+    error_message = "xc_api_rate_limit_unit must be one of: SECOND, MINUTE, HOUR."
+  }
+}
+
+variable "xc_api_rate_limit_base_path" {
+  type        = string
+  description = "Base path the baseline rate limit rule applies to."
+  default     = "/"
 }
 
 # XC Malicious User Detection
@@ -278,6 +391,43 @@ variable "xc_data_guard" {
   type        = bool
   description = "F5 XC Data Guard"
   default     = false
+}
+
+variable "xc_client_side_defense" {
+  type        = bool
+  description = "Enable client-side defense (JS insertion for monitoring client-side script tampering)."
+  default     = false
+}
+
+# XC WAF Exclusion (modern singular waf_exclusion block referencing a policy)
+variable "xc_waf_exclusion" {
+  type        = bool
+  description = "Attach a pre-existing volterra_waf_exclusion_policy to the LB."
+  default     = false
+}
+
+variable "xc_waf_exclusion_policy_name" {
+  type        = string
+  description = "Name of the pre-existing WAF exclusion policy. Required when xc_waf_exclusion is true."
+  default     = ""
+}
+
+variable "xc_waf_exclusion_policy_namespace" {
+  type        = string
+  description = "Namespace of the referenced WAF exclusion policy."
+  default     = "shared"
+}
+
+variable "xc_sensitive_data_policy" {
+  type        = bool
+  description = "Provision a baseline volterra_sensitive_data_policy and attach it to the LB."
+  default     = false
+}
+
+variable "xc_sensitive_data_compliances" {
+  type        = list(string)
+  description = "Compliance profiles applied to the sensitive data policy (e.g., COMPLIANCE_PCI, COMPLIANCE_HIPAA)."
+  default     = []
 }
 
 variable "xc_delegation" {

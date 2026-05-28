@@ -58,6 +58,8 @@ resource "google_container_node_pool" "primary" {
     disk_size_gb = var.node_disk_size_gb
     disk_type    = var.node_disk_type
 
+    tags = [local.tag_nic_ext]
+
     oauth_scopes = [
       "https://www.googleapis.com/auth/cloud-platform",
     ]

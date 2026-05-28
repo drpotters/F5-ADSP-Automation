@@ -467,9 +467,32 @@ jobs:
             exp_claim: (.xc_features.exp_claim // false),
 
             xc_bot_def: (.xc_features.xc_bot_def // false),
+            xc_bot_def_advanced: (.xc_features.xc_bot_def_advanced // false),
+            xc_bot_def_advanced_web_policy_name: (.xc_features.xc_bot_def_advanced_web_policy_name // ""),
+            xc_bot_def_advanced_web_policy_namespace: (.xc_features.xc_bot_def_advanced_web_policy_namespace // "shared"),
             xc_ddos_pro: (.xc_features.xc_ddos_pro // false),
+            xc_l7_ddos_rps_threshold: (.xc_features.xc_l7_ddos_rps_threshold // 100),
+            xc_slow_ddos: (.xc_features.xc_slow_ddos // false),
+            xc_slow_ddos_request_headers_timeout: (.xc_features.xc_slow_ddos_request_headers_timeout // 10),
+            xc_slow_ddos_request_timeout: (.xc_features.xc_slow_ddos_request_timeout // 60),
+            xc_ip_reputation: (.xc_features.xc_ip_reputation // false),
+            xc_ip_threat_categories: (.xc_features.xc_ip_threat_categories // ["SPAM_SOURCES","WINDOWS_EXPLOITS","WEB_ATTACKS","BOTNETS","SCANNERS","DOS_ATTACKS","PHISHING","PROXY","TOR_PROXY"]),
+            xc_threat_mesh: (.xc_features.xc_threat_mesh // false),
+            xc_api_rate_limit: (.xc_features.xc_api_rate_limit // false),
+            xc_api_rate_limit_threshold: (.xc_features.xc_api_rate_limit_threshold // 100),
+            xc_api_rate_limit_unit: (.xc_features.xc_api_rate_limit_unit // "MINUTE"),
+            xc_api_rate_limit_base_path: (.xc_features.xc_api_rate_limit_base_path // "/"),
             xc_mud: (.xc_features.xc_mud // false),
-            xc_data_guard: (.xc_features.xc_data_guard // false)
+            xc_data_guard: (.xc_features.xc_data_guard // false),
+
+            xc_api_crawler: (.xc_features.xc_api_crawler // false),
+            xc_api_auth_discovery: (.xc_features.xc_api_auth_discovery // false),
+            xc_client_side_defense: (.xc_features.xc_client_side_defense // false),
+            xc_waf_exclusion: (.xc_features.xc_waf_exclusion // false),
+            xc_waf_exclusion_policy_name: (.xc_features.xc_waf_exclusion_policy_name // ""),
+            xc_waf_exclusion_policy_namespace: (.xc_features.xc_waf_exclusion_policy_namespace // "shared"),
+            xc_sensitive_data_policy: (.xc_features.xc_sensitive_data_policy // false),
+            xc_sensitive_data_compliances: (.xc_features.xc_sensitive_data_compliances // [])
           }' "$COMMON" "$UC_XC" > /tmp/xc.tfvars.json
 
       - name: Auth to Google Cloud (WIF)
