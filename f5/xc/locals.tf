@@ -11,13 +11,12 @@ locals {
   origin_nic   = var.backend_nic ? try(data.terraform_remote_state.nic[0].outputs.nic_external_ip, "") : ""
   # origin_compute = var.backend_compute ? try(data.terraform_remote_state.compute[0].outputs.docker_host_external_ip, "") : ""
 
-  # Priority: BIG-IP VIP > NIC LB IP > Compute IP > Manual origin_server > k8s serviceName
+  # Priority: BIG-IP VIP > NIC LB IP > manual origin_server
   origin_server = coalesce(
     local.origin_bigip,
     local.origin_nic,
     # local.origin_compute,
-    var.origin_server,
-    var.serviceName
+    var.origin_server
   )
 
   origin_port = var.origin_port

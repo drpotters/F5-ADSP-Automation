@@ -355,50 +355,6 @@ variable "xc_mud" {
   default     = false
 }
 
-# k8s service name
-variable "serviceName" {
-  type        = string
-  description = "k8s backend service details to access the demo application"
-  default     = ""
-}
-
-# k8s backend
-variable "k8s_pool" {
-  type        = bool
-  description = "Whether pool member is k8s backend ?"
-  default     = false
-}
-
-variable "advertise_sites" {
-  type        = bool
-  description = "Boolean to check if app needs to be advertised on given sites."
-  default     = false
-}
-
-variable "http_only" {
-  type        = bool
-  description = "If type of LB need to be set as http. Use this as True for CE site deployments."
-  default     = false
-}
-
-variable "serviceport" {
-  type        = number
-  description = "k8s backend application service port details"
-  default     = 80
-}
-
-variable "gke_site_name" {
-  type        = string
-  description = "CE site name to advertise load balancer."
-  default     = ""
-}
-
-variable "eks_site_name" {
-  type        = string
-  description = "CE site name to advertise load balancer."
-  default     = ""
-}
-
 variable "xc_data_guard" {
   type        = bool
   description = "F5 XC Data Guard"
@@ -442,16 +398,10 @@ variable "xc_sensitive_data_compliances" {
   default     = []
 }
 
-variable "xc_delegation" {
-  type        = bool
-  description = "F5 XC Domain delegation"
-  default     = false
-}
-
 # Origin backend configuration
 variable "origin_server" {
   type        = string
-  description = "Origin server IP or DNS name (can be auto-discovered from remote state if backend_bigip/backend_compute enabled)"
+  description = "Origin server IP or DNS name (can be auto-discovered from remote state if backend_bigip/backend_nic enabled)"
   default     = ""
 }
 
@@ -461,8 +411,21 @@ variable "origin_port" {
   default     = 80
 }
 
-variable "hybrid_genai" {
+# TLS termination at the XC HTTP LoadBalancer
+variable "xc_byo_cert" {
   type        = bool
-  description = "Enable hybrid GenAI configuration"
+  description = "Use a pre-existing volterra_certificate (BYO TLS cert) on the LB instead of XC-managed auto-cert. Requires xc_byo_cert_name."
   default     = false
+}
+
+variable "xc_byo_cert_name" {
+  type        = string
+  description = "Name of the pre-existing volterra_certificate to attach. Required when xc_byo_cert is true."
+  default     = ""
+}
+
+variable "xc_byo_cert_namespace" {
+  type        = string
+  description = "Namespace of the referenced volterra_certificate."
+  default     = "shared"
 }

@@ -111,6 +111,10 @@ jobs:
             xc_app_type: (.xc_base.xc_app_type // []),
             xc_multi_lb: (.xc_base.xc_multi_lb // false),
 
+            xc_byo_cert: (.xc_base.xc_byo_cert // false),
+            xc_byo_cert_name: (.xc_base.xc_byo_cert_name // ""),
+            xc_byo_cert_namespace: (.xc_base.xc_byo_cert_namespace // "shared"),
+
             xc_api_disc: (.xc_features.xc_api_disc // false),
             xc_api_pro: (.xc_features.xc_api_pro // false),
             xc_api_spec: (.xc_features.xc_api_spec // null),
