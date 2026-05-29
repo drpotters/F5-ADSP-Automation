@@ -4,21 +4,6 @@ This document provides complete instructions for deploying Application Security 
 
 ---
 
-## Status
-
-| Block | State |
-|-------|-------|
-| Bootstrap (GCS state bucket) | Wired |
-| Infra (VPC, subnets, NAT) | Wired |
-| GKE Standard cluster | Wired |
-| NIC + NAP V5 | Wired |
-| Application workload (comfy-capybara) | Wired |
-| F5 XC (API security) | **Planned** - wired as a follow-up block on top of the NIC ingress |
-
-The deployable surface today is bootstrap → infra → GKE → NIC+NAP → app. The XC section below describes the planned final piece.
-
----
-
 ## Overview
 
 This repository deploys a Kubernetes-based security demonstration environment consisting of:
@@ -27,7 +12,7 @@ This repository deploys a Kubernetes-based security demonstration environment co
 - **GKE Standard Cluster** - zonal, private nodes with a public control plane endpoint locked down via authorized networks, Dataplane V2, Workload Identity, shielded nodes
 - **F5 NGINX Ingress Controller (NIC)** with **NGINX App Protect V5 (NAP V5)** sidecars (`waf-enforcer`, `waf-config-mgr`)
 - **Application Workload** - `comfy-capybara` deployed via the `oci://ghcr.io/knowbase/charts/comfy-capybara` Helm chart, exposed through a NIC `VirtualServer` with the NAP `waf-policy` attached
-- **F5 Distributed Cloud (XC)** - cloud-native API security fronting the NIC ingress (planned)
+- **F5 Distributed Cloud (XC)** - cloud-native API security fronting the NIC ingress, with origin auto-discovered from the NIC LoadBalancer IP via remote state
 
 The deployment is orchestrated entirely through GitHub Actions using Terraform with GCS remote state. Local execution is not supported.
 
@@ -35,10 +20,11 @@ The deployment is orchestrated entirely through GitHub Actions using Terraform w
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│ F5 Distributed Cloud (XC)                  (planned block)  │
+│ F5 Distributed Cloud (XC)                                   │
 │ ├─ HTTP Load Balancer                                       │
-│ ├─ API Security (WAF + API Discovery + Rate Limit)          │
-│ └─ Origin: NIC LoadBalancer Public IP                       │
+│ ├─ WAF + optional API Discovery / Rate Limit / Bot Defense  │
+│ └─ Origin: NIC LoadBalancer Public IP (from NIC remote      │
+│    state via the backend_nic flag)                          │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
@@ -88,7 +74,7 @@ The GitHub Actions workflow deploys modules sequentially with dependencies:
    ↓
 6. Terraform: App (helm_release of comfy-capybara chart; chart emits a NIC VirtualServer that references the waf-policy)
    ↓
-7. Terraform: F5 XC                 (planned - origin pool points at NIC LoadBalancer public IP via remote state)
+7. Terraform: F5 XC (HTTP LoadBalancer + WAF; origin pool resolves the NIC LoadBalancer IP from NIC remote state via backend_nic)
 ```
 
 **NAP V5 Policy Flow:**
@@ -106,7 +92,7 @@ The GitHub Actions workflow deploys modules sequentially with dependencies:
 - The chart is published as an OCI artifact at `oci://ghcr.io/knowbase/charts/comfy-capybara`; the `app/gcp` module is a thin `helm_release` shim with `values` overrides
 - The chart emits a single `VirtualServer` CRD that routes `/api` to the api service and `/` to the frontend service
 - The NIC `waf-policy` (in the `nginx-ingress` namespace) is attached server-wide and per-`/api` route by default via cross-namespace refs; toggles in `config/uc2/app/env.json` (`attach_waf_server_wide`, `attach_waf_to_api_route`) flip either off
-- The chart's `app_host` becomes the XC origin host when the XC block lands
+- The chart's `app_host` is what the XC HTTP LoadBalancer publishes as its public domain; the `app/gcp` module exports it as an output so XC can pick it up
 
 Destroy operations run in reverse order: `XC → App → NIC → GKE → Infra → State Bucket`
 
@@ -142,14 +128,12 @@ The NIC + NAP V5 images come from `private-registry.nginx.com`, which requires a
 2. **NGINX Repository Client Certificate** - `client.cert` from your NGINX subscription
 3. **NGINX Repository Client Key** - `client.key` matched to the certificate
 
-### F5 Distributed Cloud (XC) Requirements (Planned Block)
-
-When the XC block is wired in:
+### F5 Distributed Cloud (XC) Requirements
 
 1. **XC Tenant** with API access enabled
 2. **API Certificate** (.p12 file) with password
 3. **Namespace** - auto-created by Terraform
-4. **Custom Domain** configured (optional, or use XC-provided domain)
+4. **Custom Domain** configured (optional; XC can serve a tenant-provided domain instead)
 
 ### GitHub Repository Requirements
 
@@ -176,7 +160,8 @@ F5-ADSP-Automation/
 │   └── uc2/
 │       ├── gcp/env.json             # Use-case 2 GCP + GKE + NIC config
 │       ├── nap/policy.json          # NAP policy source (compiled in workflow)
-│       └── app/env.json             # comfy-capybara chart + VirtualServer config
+│       ├── app/env.json             # comfy-capybara chart + VirtualServer config
+│       └── xc/env.json              # F5 XC tenant + LoadBalancer + WAF feature flags
 ├── infra/gcp/                       # Network infrastructure
 │   ├── main.tf
 │   ├── vpc.tf
@@ -201,7 +186,7 @@ F5-ADSP-Automation/
 │   │   ├── values.yaml.tftpl
 │   │   ├── variables.tf
 │   │   └── versions.tf
-│   └── xc/                          # F5 Distributed Cloud (shared module; UC2 wiring planned)
+│   └── xc/                          # F5 Distributed Cloud (shared module; UC2 uses backend_nic for origin)
 ├── app/gcp/                         # comfy-capybara workload (helm_release of OCI chart)
 │   ├── data.tf
 │   ├── helm.tf
@@ -224,7 +209,7 @@ Remote state is stored in GCS bucket `${project_prefix}-state-bucket`:
 - `state/uc2/k8s/` - GKE cluster + node pool
 - `state/uc2/nic/` - NIC + NAP Helm release, Secrets, CRDs
 - `state/uc2/app/` - comfy-capybara Helm release, namespace
-- `state/uc2/xc/` - F5 Distributed Cloud resources (planned)
+- `state/uc2/xc/` - F5 XC namespace, HTTP LoadBalancer, WAF policy, optional API security features
 
 ---
 
@@ -360,13 +345,62 @@ Copy `config/uc2/app/env.example.json` to `config/uc2/app/env.json` and edit:
 - `attach_waf_server_wide` - attach `waf-policy` at the `VirtualServer` (covers every route as a baseline)
 - `attach_waf_to_api_route` - attach `waf-policy` on the `/api` route specifically. Route-level policies override server-wide ones, so when both are on with the same policy the behavior is "enforce everywhere"; when distinct policies live in NIC, the per-route slot becomes the API-tuned override
 
-### Step 5: Configure F5 XC Settings (Planned)
+### Step 5: Configure F5 XC Settings
 
-Once the XC block ships, the `config/uc2/xc/env.json` shape will mirror `config/uc1/xc/env.json` with these UC2-specific differences:
-- `backend_bigip: false` - no BIG-IP in this UC
-- `origin_server` - auto-resolved from NIC remote state output (`nic_external_ip`)
-- `app_domain` - matches the `app_host` set in Step 4
-- `xc_app_type`, API discovery / rate limit / etc. toggled via `xc_features` as needed
+Copy `config/uc2/xc/env.example.json` to `config/uc2/xc/env.json` and edit:
+
+```json
+{
+  "xc_base": {
+    "xc_tenant": "my-tenant",
+    "api_url": "https://my-tenant.console.ves.volterra.io/api",
+    "xc_namespace": "demo-ns",
+    "app_domain": "comfy.example.com",
+    "origin_server": "",
+    "origin_port": "80",
+    "backend_bigip": false,
+    "backend_nic": true,
+    "xc_waf_blocking": true,
+    "xc_app_type": [],
+    "xc_multi_lb": false
+  },
+  "xc_features": {
+    "xc_api_disc": false,
+    "xc_api_pro": false,
+    "xc_bot_def": false,
+    "xc_ddos_pro": false,
+    "xc_api_rate_limit": false,
+    "xc_ip_reputation": false,
+    "xc_threat_mesh": false,
+    "xc_sensitive_data_policy": false
+  }
+}
+```
+
+(See `config/uc2/xc/env.example.json` for the full `xc_features` surface; the example above shows the most common toggles.)
+
+**Required Changes:**
+- `xc_tenant` - XC tenant name
+- `api_url` - XC tenant API URL
+- `xc_namespace` - namespace to create in XC (cannot be `system` or `shared`; pick something unique within the tenant)
+- `app_domain` - public domain XC will serve. Must equal the `app_host` set in Step 4 so the NIC `VirtualServer` accepts XC's forwarded traffic.
+
+**UC2-Specific Settings:**
+- `backend_bigip: false` - no BIG-IP in UC2
+- `backend_nic: true` - XC origin pool resolves the NIC LoadBalancer IP from `state/uc2/nic` via the shared XC module's remote-state lookup
+- `origin_server: ""` - leave empty; populated from NIC remote state
+
+**Customizable Settings (`xc_features`):**
+All feature toggles default to off. Flip individual flags for the demo you're staging. The most commonly used ones:
+- `xc_api_disc` - turn on API Discovery to populate the API endpoints catalog from observed traffic
+- `xc_api_pro` + `xc_api_val_*` - enforce against a declared OpenAPI definition
+- `xc_api_rate_limit` + `xc_api_rate_limit_threshold` + `xc_api_rate_limit_unit` - baseline global rate limit
+- `xc_ip_reputation` + `xc_ip_threat_categories` - drop traffic matching threat-intel categories
+- `xc_bot_def` (classic) or `xc_bot_def_advanced` + `xc_bot_def_advanced_web_policy_name` (policy-ref form)
+- `xc_threat_mesh` - cross-tenant threat intelligence signal
+- `xc_sensitive_data_policy` + `xc_sensitive_data_compliances` - PII / PCI / HIPAA pattern detection
+
+The full set of supported feature flags lives in `f5/xc/variables.tf`.
 
 ---
 
@@ -383,11 +417,6 @@ Configure the following secrets in GitHub repository settings: `Settings → Sec
 | `NGINX_JWT` | NGINX Plus entitlement JWT | Download from `MyF5` portal under your NGINX Plus subscription |
 | `NGINX_REPO_CRT` | Client certificate for `private-registry.nginx.com` | `nginx-repo.crt` from NGINX subscription bundle |
 | `NGINX_REPO_KEY` | Client key for `private-registry.nginx.com` | `nginx-repo.key` from NGINX subscription bundle |
-
-### Required Secrets (Planned XC Block)
-
-| Secret Name | Description | How to Obtain |
-|-------------|-------------|---------------|
 | `VES_P12_CONTENT` | Base64-encoded XC API certificate (.p12 file) | Run: `base64 -w 0 /path/to/certificate.p12` (Linux) or `base64 -i /path/to/certificate.p12` (macOS) |
 | `VES_P12_PASSWORD` | Password for XC API certificate | Provided when downloading certificate from XC console |
 
@@ -437,6 +466,7 @@ gcloud iam service-accounts add-iam-policy-binding "${SERVICE_ACCOUNT}" \
    - `config/uc2/gcp/env.json`
    - `config/uc2/nap/policy.json`
    - `config/uc2/app/env.json`
+   - `config/uc2/xc/env.json`
 3. **Set GitHub Secrets** (see GitHub Secrets Setup)
 4. **Commit and push changes** to `main` branch
 5. **Create deployment branch:**
@@ -474,7 +504,7 @@ git push origin destroy-adsp-uc2
 ```
 
 Destroy sequence:
-1. F5 XC resources (when XC block is wired)
+1. F5 XC resources (HTTP LoadBalancer, WAF, namespace)
 2. Application workload (comfy-capybara Helm release + namespace)
 3. NIC + NAP Helm release
 4. GKE cluster
@@ -485,7 +515,7 @@ Destroy sequence:
 
 ## Accessing Deployment Outputs
 
-### Via Terraform Cloud Shell
+### Via GCP Cloud Shell
 
 Activate Cloud Shell in GCP Console, then:
 
@@ -512,6 +542,10 @@ gsutil cat gs://${STATE_BUCKET}/state/uc2/nic/default.tfstate | \
 # Get app FQDN, namespace, and VirtualServer name
 gsutil cat gs://${STATE_BUCKET}/state/uc2/app/default.tfstate | \
   jq -r '.outputs.app_host.value, .outputs.app_namespace.value, .outputs.virtualserver_name.value'
+
+# Get XC endpoint (public domain), LoadBalancer name, and WAF policy name
+gsutil cat gs://${STATE_BUCKET}/state/uc2/xc/default.tfstate | \
+  jq -r '.outputs.endpoint.value, .outputs.xc_lb_name.value, .outputs.xc_waf_name.value'
 ```
 
 ### Connect kubectl to the GKE Cluster
@@ -538,10 +572,13 @@ gcloud container clusters get-credentials "${CLUSTER_NAME}" \
 | `nic_external_ip` | nic | External IP assigned to the NIC LoadBalancer (XC origin) |
 | `waf_policy_name` | nic | Name of the NIC Policy resource exposing the NAP bundle |
 | `waf_policy_namespace` | nic | Namespace of the WAF Policy resource (apps cross-reference it) |
-| `app_host` | app | FQDN exposed by the NIC `VirtualServer` (matches the XC `app_domain` when XC lands) |
+| `app_host` | app | FQDN exposed by the NIC `VirtualServer` (matches the XC `app_domain`) |
 | `app_namespace` | app | Namespace the comfy-capybara workload runs in |
 | `release_name` | app | Helm release name for the comfy-capybara chart |
 | `virtualserver_name` | app | Name of the `VirtualServer` CRD emitted by the chart |
+| `endpoint` | xc | XC `app_domain` (public URL clients hit) |
+| `xc_lb_name` | xc | XC HTTP LoadBalancer resource name |
+| `xc_waf_name` | xc | XC WAF policy resource name |
 
 ---
 
@@ -612,7 +649,7 @@ APP_HOST=$(gsutil cat gs://${STATE_BUCKET}/state/uc2/app/default.tfstate | \
 curl -H "Host: ${APP_HOST}" "http://${NIC_IP}/"
 curl -H "Host: ${APP_HOST}" "http://${NIC_IP}/api/healthz"
 
-# Through XC (once XC block ships)
+# Through XC (public domain)
 curl "https://${APP_HOST}"
 ```
 
@@ -631,6 +668,30 @@ To watch enforcement live, tail the NAP enforcer logs:
 NIC_NS=$(gsutil cat gs://${STATE_BUCKET}/state/uc2/nic/default.tfstate | \
   jq -r '.outputs.nic_namespace.value')
 kubectl -n "${NIC_NS}" logs -l app.kubernetes.io/name=nginx-ingress -c waf-enforcer --tail=50 -f
+```
+
+### XC LoadBalancer + WAF Verification
+
+1. Login to XC Console: `https://your-tenant.console.ves.volterra.io`
+2. Verify the namespace exists: `Administration → Namespaces`
+3. Navigate to: `Multi-Cloud App Connect → HTTP Load Balancers` in the configured namespace
+4. The LoadBalancer should show:
+   - **Domain** matching `app_domain` (and the `endpoint` output)
+   - **Origin Pool** with one origin server matching the NIC LoadBalancer public IP
+   - **WAF** attached, in blocking or monitoring mode per `xc_waf_blocking`
+5. Send live traffic through the public URL and check `Performance → Requests` or `Security → Security Events` for the LoadBalancer.
+
+```bash
+ENDPOINT=$(gsutil cat gs://${STATE_BUCKET}/state/uc2/xc/default.tfstate | \
+  jq -r '.outputs.endpoint.value')
+
+# Normal request - should reach the app through XC -> NIC -> frontend/api
+curl -i "https://${ENDPOINT}/"
+curl -i "https://${ENDPOINT}/api/healthz"
+
+# WAF probe - same SQLi-style probe used at NIC, blocked at the XC edge if XC WAF
+# is in blocking mode (xc_waf_blocking=true). NAP at NIC is a defense-in-depth layer.
+curl -i "https://${ENDPOINT}/api/users?id=1%20OR%201=1"
 ```
 
 ---
@@ -746,7 +807,7 @@ kubectl -n "${NIC_NS}" logs -l app.kubernetes.io/name=nginx-ingress -c waf-enfor
 - Check GCP regional quota for forwarding rules
 - Inspect Service events: `kubectl -n nginx-ingress describe svc`
 
-### XC Provider Errors (Planned Block)
+### XC Provider Errors
 
 **Error:** `Error: error reading VES_P12_PASSWORD`
 
@@ -762,6 +823,16 @@ kubectl -n "${NIC_NS}" logs -l app.kubernetes.io/name=nginx-ingress -c waf-enfor
 - Test decoding: `echo $VES_P12_CONTENT | base64 -d > test.p12`
 - Verify `api_url` in `config/uc2/xc/env.json` matches the tenant
 - Check API certificate is not expired in XC console
+
+### XC Origin Shows Down / 502 from Public URL
+
+**Error:** `https://${endpoint}` returns 502 or XC console shows the origin pool as down
+
+**Resolution:**
+- Confirm `backend_nic: true` is set in `config/uc2/xc/env.json` so XC picks up the NIC IP from `state/uc2/nic`. With both `backend_bigip` and `backend_nic` false and `origin_server` empty, the coalesce chain collapses and the apply errors out.
+- Confirm the NIC LoadBalancer Service has an external IP: see [NIC LoadBalancer Pending External IP](#nic-loadbalancer-pending-external-ip).
+- The `app_domain` in `config/uc2/xc/env.json` must equal the `app_host` in `config/uc2/app/env.json`. If they drift, XC forwards the request with one Host header and the NIC `VirtualServer` doesn't match, returning 404 (XC then reports the origin healthy but the app is unreachable through XC).
+- Direct-to-NIC reachability (the [Application Reachability](#application-reachability) curl) must work before XC will look healthy.
 
 ### Terraform Variable Errors
 
@@ -875,6 +946,6 @@ Terraform modules and configuration are provided as-is for demonstration purpose
 
 ---
 
-**Last Updated:** 2026-05-28
+**Last Updated:** 2026-05-29
 **Terraform Version:** >= 1.3.0
 **Target GCP Regions:** All (tested on us-west1)

@@ -43,6 +43,18 @@ variable "backend_bigip" {
   default     = false
 }
 
+variable "backend_nic" {
+  type        = bool
+  description = "Whether to reference NIC remote state for the origin LoadBalancer IP."
+  default     = false
+}
+
+variable "nic_state_prefix" {
+  type        = string
+  description = "GCS prefix where NIC + NAP state is stored. Read when backend_nic is true."
+  default     = "state/uc2/nic"
+}
+
 # XC
 variable "xc_tenant" {
   type        = string

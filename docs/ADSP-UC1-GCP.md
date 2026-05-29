@@ -388,7 +388,7 @@ Destroy sequence:
 
 ## Accessing Deployment Outputs
 
-### Via Terraform Cloud Shell (Recommended)
+### Via GCP Cloud Shell
 
 Activate Cloud Shell in GCP Console, then:
 
