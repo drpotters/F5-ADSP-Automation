@@ -1,6 +1,6 @@
 data "kubernetes_service_v1" "nic" {
   metadata {
-    name      = "${helm_release.nginx_ingress.name}-${helm_release.nginx_ingress.chart}-controller"
+    name      = "${helm_release.nginx_ingress.name}-nginx-ingress-controller"
     namespace = helm_release.nginx_ingress.namespace
   }
 }

@@ -303,7 +303,7 @@ jobs:
       - name: Setup helm
         uses: azure/setup-helm@v4
 
-      - name: Vendor NIC chart (drop broken values.schema.json)
+      - name: Vendor NIC chart
         shell: bash
         run: |
           set -euo pipefail
@@ -317,7 +317,6 @@ jobs:
             --version "$CHART_VERSION" \
             --untar --untardir /tmp/charts
           rm -f /tmp/charts/nginx-ingress/values.schema.json
-          echo "Vendored chart at /tmp/charts/nginx-ingress (schema removed)"
 
       - name: Allow runner IP through GKE control plane authorized networks
         if: github.ref == 'refs/heads/deploy-adsp-uc2'

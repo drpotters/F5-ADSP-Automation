@@ -338,7 +338,7 @@ jobs:
       - name: Setup helm
         uses: azure/setup-helm@v4
 
-      - name: Vendor NIC chart (drop broken values.schema.json)
+      - name: Vendor NIC chart
         shell: bash
         run: |
           set -euo pipefail
