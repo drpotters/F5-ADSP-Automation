@@ -7,7 +7,8 @@ resource "helm_release" "nginx_ingress" {
 
   values = [local.chart_values]
 
-  timeout = 600
+  timeout                    = 600
+  disable_openapi_validation = true
 
   depends_on = [
     kubernetes_secret.nginx_license,
