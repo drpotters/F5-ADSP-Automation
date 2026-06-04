@@ -72,7 +72,7 @@ The GitHub Actions workflow deploys modules sequentially with dependencies:
    ↓
 4. Workflow: Compile NAP policy (waf-compiler 5.4.0 → /tmp/compiled_policy.tgz)
    ↓
-5. Terraform: NIC + NAP (Helm release; mounts compiled policy via Secret)
+5. Terraform: NIC + NAP (Helm release; bundle mounted via GCS Fuse CSI)
    ↓
 6. Terraform: App (helm_release of comfy-capybara; chart emits a NIC VirtualServer)
    ↓
@@ -81,9 +81,9 @@ The GitHub Actions workflow deploys modules sequentially with dependencies:
 
 **NAP V5 Policy Flow:**
 - Policy source lives at `config/uc2/nap/policy.json`
-- Workflow runs `private-registry.nginx.com/nap/waf-compiler:5.4.0` to produce `/tmp/compiled_policy.tgz`
-- Terraform mounts the compiled bundle into a Kubernetes Secret and exposes it via the chart's `extraVolumes` mechanism
-- The `waf-config-mgr` sidecar watches for the bundle and pushes it to the `waf-enforcer` sidecar
+- Workflow runs `private-registry.nginx.com/nap/waf-compiler:5.4.0` to produce `/tmp/compiled_policy.tgz`, then uploads it to `gs://<state-bucket>/artifacts/uc2/nap/compiled_policy.tgz`
+- NIC pod mounts that GCS path read-only at `/etc/app_protect/bundles` via the GCS Fuse CSI driver, impersonating the runtime SA through Workload Identity
+- The `waf-config-mgr` sidecar watches the mount and pushes the bundle to the `waf-enforcer` sidecar
 - The `Policy` CRD (`waf-policy`) in the `nginx-ingress` namespace is what application `VirtualServer` resources reference
 
 **API Protection Flow:**
@@ -130,12 +130,28 @@ The roles above are the simplest set that lets the workflow run end-to-end. For 
 
 #### Runtime SA (attached to GKE nodes)
 
-The runtime SA referenced by `k8s.gcp_runtime_service_account_email` in `config/uc2/gcp/env.json` carries the standard GKE node telemetry roles:
+The runtime SA referenced by `k8s.gcp_runtime_service_account_email` in `config/uc2/gcp/env.json` is the same SA UC1 uses. It carries:
 
-- `roles/logging.logWriter`
+- `roles/logging.logWriter` (GKE node telemetry)
 - `roles/monitoring.metricWriter`
 - `roles/monitoring.viewer`
 - `roles/stackdriver.resourceMetadata.writer`
+- `roles/storage.objectViewer` on the state bucket - already present for UC1's AS3 polling; UC2 reuses it for the NAP bundle GCS Fuse mount
+
+#### Pre-stage Workload Identity binding for the NAP bundle (one-time per project)
+
+The NIC pod impersonates the runtime SA via Workload Identity to mount the NAP bundle from GCS. Bind the WI role on the runtime SA to the cluster KSA principal once:
+
+```bash
+PROJECT=<project-id>
+RUNTIME_SA=<runtime-sa>@$PROJECT.iam.gserviceaccount.com
+
+gcloud iam service-accounts add-iam-policy-binding "$RUNTIME_SA" \
+  --role="roles/iam.workloadIdentityUser" \
+  --member="serviceAccount:$PROJECT.svc.id.goog[nginx-ingress/nic-nap-bundle-reader]"
+```
+
+A custom role containing just `iam.serviceAccounts.getAccessToken` works in place of `roles/iam.workloadIdentityUser` for this binding.
 
 ### F5 NGINX Plus + NAP V5 Requirements
 
