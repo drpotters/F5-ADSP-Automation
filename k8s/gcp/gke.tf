@@ -46,12 +46,6 @@ resource "google_container_cluster" "primary" {
 
   datapath_provider = "ADVANCED_DATAPATH"
 
-  addons_config {
-    gcs_fuse_csi_driver_config {
-      enabled = true
-    }
-  }
-
   resource_labels = {
     owner = local.resource_owner
   }
