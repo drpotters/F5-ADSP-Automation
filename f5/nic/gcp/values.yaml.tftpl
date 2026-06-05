@@ -14,10 +14,6 @@ controller:
     annotations:
       iam.gke.io/gcp-service-account: ${gsa_email}
 
-  pod:
-    annotations:
-      gke-gcsfuse/volumes: "true"
-
   mgmt:
     licenseTokenSecretName: ${license_secret_name}
     sslVerify: false
@@ -45,18 +41,18 @@ controller:
         - name: app-protect-bundles
           mountPath: /etc/app_protect/bundles
 
-  volumes:
-    - name: app-protect-bd-config
-      emptyDir: {}
-    - name: app-protect-config
-      emptyDir: {}
-    - name: app-protect-bundles
-      csi:
-        driver: gcsfuse.csi.storage.gke.io
-        readOnly: true
-        volumeAttributes:
-          bucketName: ${nap_bundle_bucket}
-          mountOptions: "implicit-dirs,only-dir=${nap_bundle_subdir}"
+  initContainers:
+    - name: copy-nap-bundle
+      image: google/cloud-sdk:slim
+      command: ["sh", "-c"]
+      args:
+        - |
+          set -eu
+          gsutil cp "gs://${nap_bundle_bucket}/${nap_bundle_subdir}/compiled_policy.tgz" \
+            /etc/app_protect/bundles/compiled_policy.tgz
+      volumeMounts:
+        - name: app-protect-bundles
+          mountPath: /etc/app_protect/bundles
 
   service:
     type: LoadBalancer
