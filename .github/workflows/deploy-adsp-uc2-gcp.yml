@@ -524,7 +524,7 @@ jobs:
           fi
 
           echo "$VES_P12_CONTENT" | base64 -d > /tmp/api.p12
-          openssl pkcs12 -in /tmp/api.p12 -out /tmp/api.pem \
+          openssl pkcs12 -legacy -in /tmp/api.p12 -out /tmp/api.pem \
             -nodes -passin "pass:$VES_P12_PASSWORD"
 
           OAS_B64=$(base64 -w 0 "$OAS_FILE")
