@@ -145,31 +145,54 @@ If you need to create the Workload Identity Pool:
 ```bash
 # Set variables
 PROJECT_ID="your-project-id"
-POOL_NAME="github-actions-pool"
+PROJECT_NUMBER="1001743186630"
+POOL_NAME="${PREFIX}-github-actions-pool"
 PROVIDER_NAME="github-provider"
-SERVICE_ACCOUNT="github-actions-sa@${PROJECT_ID}.iam.gserviceaccount.com"
-REPO="your-github-org/your-repo"
+SA_PREFIX="dp"
+SA_SUFFIX="github-actions-sa"
+SERVICE_ACCOUNT="${SA_PREFIX}-${SA_SUFFIX}@${PROJECT_ID}.iam.gserviceaccount.com"
+GH_ORGANIZATION="your-github-org"
+GH_REPO="${GH_ORGANIZATION}/your-repo"
 
-# Create Workload Identity Pool
+# 1. Create the service account
+gcloud iam service-accounts create "${SA_PREFIX}-${SA_SUFFIX}" \
+    --display-name="${SA_PREFIX} GitHub Actions for ADSP Automation" \
+    --project="${PROJECT_ID}"
+
+# 2. Grant the three roles
+gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
+    --member="serviceAccount:${SERVICE_ACCOUNT}" \
+    --role="roles/compute.admin"
+
+gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
+    --member="serviceAccount:${SERVICE_ACCOUNT}" \
+    --role="roles/storage.admin"
+
+gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
+    --member="serviceAccount:${SERVICE_ACCOUNT}" \
+    --role="roles/iam.serviceAccountUser"
+
+# 3. Create Workload Identity Pool
 gcloud iam workload-identity-pools create "${POOL_NAME}" \
   --project="${PROJECT_ID}" \
   --location="global" \
   --display-name="GitHub Actions Pool"
 
-# Create Provider
+# 4. Create Provider
 gcloud iam workload-identity-pools providers create-oidc "${PROVIDER_NAME}" \
   --project="${PROJECT_ID}" \
   --location="global" \
   --workload-identity-pool="${POOL_NAME}" \
   --display-name="GitHub Provider" \
   --attribute-mapping="google.subject=assertion.sub,attribute.actor=assertion.actor,attribute.repository=assertion.repository" \
+  --attribute-condition="assertion.repository_owner == '${GH_ORGANIZATION}'" \
   --issuer-uri="https://token.actions.githubusercontent.com"
 
-# Grant service account access
+# 5. Grant service account access
 gcloud iam service-accounts add-iam-policy-binding "${SERVICE_ACCOUNT}" \
   --project="${PROJECT_ID}" \
   --role="roles/iam.workloadIdentityUser" \
-  --member="principalSet://iam.googleapis.com/projects/PROJECT_NUMBER/locations/global/workloadIdentityPools/${POOL_NAME}/attribute.repository/${REPO}"
+  --member="principalSet://iam.googleapis.com/projects/${PROJECT_NUMBER}/locations/global/workloadIdentityPools/${POOL_NAME}/attribute.repository/${GH_REPO}"
 ```
 
 ---
@@ -464,23 +487,17 @@ Activate Cloud Shell in GCP Console, then:
 PROJECT_PREFIX="your-prefix"
 STATE_BUCKET="${PROJECT_PREFIX}-state-bucket"
 
-# Get BIG-IP management IP
-gsutil cat gs://${STATE_BUCKET}/state/bigip-base/default.tfstate | \
-  jq -r '.outputs.bigip_public_ip.value'
-
-# Get BIG-IP admin password (sensitive)
-gsutil cat gs://${STATE_BUCKET}/state/bigip-base/default.tfstate | \
-  jq -r '.outputs.bigip_admin_password.value'
+# Get BIG-IP management IP and admin password (sensitive)
+gcloud storage cat gs://${STATE_BUCKET}/state/bigip-base/default.tfstate | \
+  jq -r '[.outputs.bigip_external_public_ip.value, .outputs.bigip_admin_password.value]'
 
 # Get XC application domain
-gsutil cat gs://${STATE_BUCKET}/state/xc/default.tfstate | \
+gcloud storage cat gs://${STATE_BUCKET}/state/xc/default.tfstate | \
   jq -r '.outputs.endpoint.value'
 
 # Get application internal IPs
-gsutil cat gs://${STATE_BUCKET}/state/compute/default.tfstate | \
-  jq -r '.outputs.juice_shop_internal_ip.value'
-gsutil cat gs://${STATE_BUCKET}/state/compute/default.tfstate | \
-  jq -r '.outputs.crapi_internal_ip.value'
+gcloud storage cat gs://${STATE_BUCKET}/state/compute/default.tfstate | \
+  jq -r '[.outputs.juice_shop_internal_ip.value, .outputs.crapi_internal_ip.value]'
 ```
 
 ### Via GitHub Actions Workflow Outputs
@@ -517,14 +534,14 @@ Add a custom step to the workflow to output values:
 
 1. **Retrieve credentials:**
    ```bash
-   MGMT_IP=$(gsutil cat gs://${STATE_BUCKET}/state/bigip-base/default.tfstate | \
-     jq -r '.outputs.bigip_public_ip.value')
-   ADMIN_PASSWORD=$(gsutil cat gs://${STATE_BUCKET}/state/bigip-base/default.tfstate | \
+   MGMT_IP=$(gcloud storage cat gs://${STATE_BUCKET}/state/bigip-base/default.tfstate | \
+     jq -r '.outputs.bigip_external_public_ip.value')
+   ADMIN_PASSWORD=$(gcloud storage cat gs://${STATE_BUCKET}/state/bigip-base/default.tfstate | \
      jq -r '.outputs.bigip_admin_password.value')
    ```
 
 2. **Access GUI:**
-   - URL: `https://${MGMT_IP}:443`
+   - URL: `https://${MGMT_IP}:8443`
    - Username: `admin`
    - Password: `${ADMIN_PASSWORD}`
 
